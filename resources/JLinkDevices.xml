@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  dsh-jlink bundled Flagchip device database (minimal, generated from jlink_mcp caches).
+  External override: set patchDir in plugin config to a directory containing JLinkDevices.xml.
+-->
+<DataBase>
+  <Device>
+    <ChipInfo Vendor="Flagchip" Name="FC4150F1MBSxXxxxT1A" Core="Cortex-M4" WorkRAMAddr="0x20000000" WorkRAMSize="0x10000" />
+  </Device>
+  <Device>
+    <ChipInfo Vendor="Flagchip" Name="FC4150F1MBSxXxxxT1B" Core="Cortex-M4" WorkRAMAddr="0x20000000" WorkRAMSize="0x10000" />
+  </Device>
+  <Device>
+    <ChipInfo Vendor="Flagchip" Name="FC4150F2MBSxXxxxT1A" Core="Cortex-M4" WorkRAMAddr="0x20000000" WorkRAMSize="0x10000" />
+  </Device>
+  <Device>
+    <ChipInfo Vendor="Flagchip" Name="FC7300F4MDDxXxxxT1C" Core="Cortex-M4" WorkRAMAddr="0x20000000" WorkRAMSize="0x10000" />
+  </Device>
+  <Device>
+    <ChipInfo Vendor="Flagchip" Name="FC7300F4MDSxXxxxT1C" Core="Cortex-M4" WorkRAMAddr="0x20000000" WorkRAMSize="0x10000" />
+  </Device>
+  <Device>
+    <ChipInfo Vendor="Flagchip" Name="FC7300F8MDQxXxxxT1B" Core="Cortex-M4" WorkRAMAddr="0x20000000" WorkRAMSize="0x10000" />
+  </Device>
+</DataBase>

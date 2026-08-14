@@ -1,0 +1,15 @@
+# dsh-jlink bundle patch
+#
+# This file is the `dsh.bundle.patch` layer: when the plugin is added to a
+# profile's bundle stack, the profile boot merges this patch (a single
+# `insert` of the plugin row) like a manual cordis.patch.yml mount line.
+#
+# Do NOT also add a manual jlink row to the profile's cordis.patch.yml —
+# that would double-mount the plugin.
+- insert:
+    - id: jlink
+      name: '@can/dsh-jlink'
+      inject: ['tools', 'typert']
+      config:
+        driver: mock
+        defaultInterface: JTAG

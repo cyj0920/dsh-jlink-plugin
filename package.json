@@ -1,0 +1,94 @@
+{
+  "name": "@can/dsh-jlink",
+  "version": "0.1.0",
+  "description": "Native DeepSeek Harness plugin for J-Link debugging: manager + tools + device patches + visualization. 原生 J-Link 调试插件（管理器+工具+补丁注册+可视化）。",
+  "type": "module",
+  "main": "lib/index.mjs",
+  "types": "lib/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.mts",
+      "default": "./lib/index.mjs"
+    },
+    "./types": {
+      "types": "./lib/types.d.mts",
+      "default": "./lib/types.mjs"
+    },
+    "./client": {
+      "types": "./lib/client.d.cts",
+      "default": "./lib/client.js"
+    },
+    "./remote": {
+      "types": "./lib/remote.d.mts",
+      "default": "./lib/remote.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ],
+      "platform": "web"
+    }
+  },
+  "files": [
+    "lib",
+    "resources",
+    "python",
+    "cordis.patch.yml"
+  ],
+  "scripts": {
+    "build": "tsdown && tsdown --config tsdown.client.config.ts && node scripts/wrap-client.mjs",
+    "watch": "tsdown --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-api-gateway": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-locale": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-llm": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-session": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-session-projection": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-typert-protocol": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-typert-registry": "^0.1.0-rc.6",
+    "react": "^18.2.0",
+    "zod": "^4.4.3"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "file:C:/Users/qxw0112/AppData/Local/npm-cache/_npx/1e7f6d9597241db0/node_modules/@deepseek-ai/cordis",
+    "@deepseek-ai/dsh-tools": "file:C:/Users/qxw0112/AppData/Local/npm-cache/_npx/1e7f6d9597241db0/node_modules/@deepseek-ai/dsh-tools",
+    "@deepseek-ai/dsh-llm": "file:C:/Users/qxw0112/AppData/Local/npm-cache/_npx/1e7f6d9597241db0/node_modules/@deepseek-ai/dsh-llm",
+    "@deepseek-ai/dsh-session": "file:C:/Users/qxw0112/AppData/Local/npm-cache/_npx/1e7f6d9597241db0/node_modules/@deepseek-ai/dsh-session",
+    "@deepseek-ai/dsh-typert-protocol": "file:C:/Users/qxw0112/AppData/Local/npm-cache/_npx/1e7f6d9597241db0/node_modules/@deepseek-ai/dsh-typert-protocol",
+    "@deepseek-ai/dsh-typert-registry": "file:C:/Users/qxw0112/AppData/Local/npm-cache/_npx/1e7f6d9597241db0/node_modules/@deepseek-ai/dsh-typert-registry",
+    "@deepseek-ai/dsh-api-gateway": "file:C:/Users/qxw0112/AppData/Local/npm-cache/_npx/1e7f6d9597241db0/node_modules/@deepseek-ai/dsh-api-gateway",
+    "@deepseek-ai/dsh-session-projection": "file:C:/Users/qxw0112/AppData/Local/npm-cache/_npx/1e7f6d9597241db0/node_modules/@deepseek-ai/dsh-session-projection",
+    "@deepseek-ai/dsh-client-runtime": "file:C:/Users/qxw0112/AppData/Local/npm-cache/_npx/1e7f6d9597241db0/node_modules/@deepseek-ai/dsh-client-runtime",
+    "@deepseek-ai/dsh-client-ui-slots": "file:C:/Users/qxw0112/AppData/Local/npm-cache/_npx/1e7f6d9597241db0/node_modules/@deepseek-ai/dsh-client-ui-slots",
+    "@deepseek-ai/dsh-client-locale": "file:C:/Users/qxw0112/AppData/Local/npm-cache/_npx/1e7f6d9597241db0/node_modules/@deepseek-ai/dsh-client-locale",
+    "@deepseek-ai/dsh-client-ui-primitives": "file:C:/Users/qxw0112/AppData/Local/npm-cache/_npx/1e7f6d9597241db0/node_modules/@deepseek-ai/dsh-client-ui-primitives",
+    "@deepseek-ai/dsh-client-ui-conversation": "file:C:/Users/qxw0112/AppData/Local/npm-cache/_npx/1e7f6d9597241db0/node_modules/@deepseek-ai/dsh-client-ui-conversation",
+    "@types/node": "^24.0.0",
+    "@types/react": "~18.3.1",
+    "tsdown": "^0.22.14",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.10"
+  }
+}
