@@ -1,87 +1,133 @@
 # @can/dsh-jlink — DSH 原生 J-Link 调试插件
 
 Native DeepSeek Harness (Cordis) plugin: J-Link debugging as first-class tools,
-device patches and browser visualization. 设计规格见 [DESIGN.md](./DESIGN.md)。
+device patches and browser visualization. 设计规格见 [DESIGN.md](./DESIGN.md)，
+设计思路复盘见 [DESIGN-REVIEW.md](./DESIGN-REVIEW.md)。
 
-## 状态（实现进度）
+## 状态
 
-- ✅ Phase 1 骨架：MockDriver、JLinkCore 状态机、连接/状态/暂停 3 工具、`jlink/status` Remote、会话头状态灯
-- ✅ Phase 2 全量：23 个工具、PatchRegistry + FlagchipPatch（内置 6 款 Flagchip 设备）、toolview 视图族（hexdump/寄存器/芯片卡/进度条）
-- 🚧 Phase 3 代码已就位（未硬件验证）：PythonDriver + python/driver.py（ndjson RPC）、RTT 工具与终端视图、projection 单元（需事件提交路径验证）
-- ⏳ Phase 4：Node 直驱 DLL、SVD、多厂商补丁
+- ✅ **Phase 1+2**：骨架、23 个工具、补丁注册器、toolview 视图族（已通过 typecheck / 25 单测 / 构建冒烟）
+- ✅ **Phase 3（已真机验证）**：PythonDriver（ndjson RPC + pylink 2.0.0）、状态灯 + 连接/暂停/运行/复位、RTT 服务层
+- ⏳ **Phase 3 剩余**：Flash 三件套（需接 jlink_mcp flash loader 管线）、RTT 固件联调、会话投影推送
+- 真机记录：**J-Link WiFi (S/N 941000021) · JTAG · Cortex-M4 r0p1**，halt / 寄存器 / SRAM 读写回环 / 断点 / run 全部实测通过
 
-## 安装
+## 特性
 
-```bash
-# 1) 安装依赖并构建（构建会同时产出 host / client / remote 三份产物）
-pnpm install
-pnpm build
+- **23 个原生工具**（与 jlink_mcp 同名）：连接管理、设备信息、内存/寄存器、调试控制、Flash、芯片名智能匹配
+- **浏览器可视化**：会话头 J-Link 状态灯（实时轮询 Remote RPC，弹窗内直接连接/断开/暂停/运行/复位）
+- **设备补丁注册器**：Flagchip 内置 6 款设备（FC7300F4MDDxXxxxT1C 等），匹配算法与 jlink_mcp 一致（精确→前缀→包含→模糊 + T1C>T1B>T1A 优先级）
+- **可插拔驱动层**：mock（无硬件开发）/ python（真机，ndjson RPC 子进程）/ gdb（规划）
+- **统一信封**：所有工具返回 `{success, data, message, error}`，错误码结构化（JLINK_NOT_HALTED 等）
 
-# 2) 挂进 DSH profile（profile 名可自定；具体命令以 DSH CLI 行为参考为准）
-dsh plugin --profile can add <本目录路径或打包名>
+## 架构
 
-# 3) profile 的 cordis.patch.yml（host plane 根层，勿放进 isolate realm）：
-#    - id: jlink
-#      name: '@can/dsh-jlink'
-#      config:
-#        driver: mock          # mock | python
-#        defaultInterface: JTAG
-
-# 4) 启动并验证
-dsh web
-dsh --profile web --dump-config        # 应能看到 jlink 插件行
+```
+浏览器（Client）            Host（Node）                 硬件侧
+状态灯/toolview 组件   →  Remote RPC (Typert)  →  JLinkService → DriverInterface
+ctx.remote.jlink.*        ctx.tools.register        │    MockDriver / PythonDriver
+                           23 个工具 → JLinkCore     │    │
+                          PatchRegistry → Flagchip   │    │ ndjson RPC (stdio)
+                                                    └── python/driver.py → pylink → J-Link
 ```
 
-## 配置（src/config.ts，zod）
+数据通道：工具调用（模型→Host）、Remote RPC（UI→Host，返回 `{ok, value}` 信封）、RTT 长轮询、toolview 键控槽。
+
+## 安装（挂进 DSH profile）
+
+```bash
+# 1) profile 依赖（link: 安装，与 dsh-better-sidebar 同一模式）
+#    profiles/<name>/package.json:
+#      "dependencies": { "@can/dsh-jlink": "link:C:/1.Projects/Can/dsh-jlink-plugin" }
+#      "dsh": { "profile": { "bundles": [..., "@can/dsh-jlink"] } }
+
+# 2) 安装依赖并构建
+pnpm install
+pnpm build          # 产物：lib/index.mjs(host) + lib/client.js(browser) + lib/remote.mjs
+
+# 3) 启动
+dsh web
+# 验证：--dump-config 可见 jlink 行；浏览器会话头出现 J-Link 状态灯
+```
+
+插件行由包内 `cordis.patch.yml`（`dsh.bundle.patch`）自动注入，**不要**再在 profile 的 cordis.patch.yml 里手动加 jlink 行（会双挂载）。
+
+## 配置（src/config.ts，zod，只增不改）
 
 | 键 | 默认 | 说明 |
 |---|---|---|
-| driver | mock | mock / python / gdb(未实现) |
-| pythonCommand | python | PythonDriver 的解释器 |
+| driver | python | mock / python / gdb(规划) |
+| pythonCommand | python | PythonDriver 解释器（真机建议指向 jlink_mcp 的 venv） |
 | pythonDriverPath | 内置 python/driver.py | 驱动脚本路径 |
 | defaultInterface | JTAG | SWD / JTAG |
+| defaultCore | Cortex-M4 | 通用内核回退（镜像 jlink_mcp generic_core_fallback） |
 | defaultTimeoutMs | 10000 | 工具默认超时 |
-| maxMemoryReadSize | 65536 | 单次最大读内存字节数 |
+| maxMemoryReadSize | 65536 | 单次最大读内存 |
 | patchDir | 内置 resources/JLinkDevices.xml | 外部设备库目录 |
-| autoReconnect | false | 断线重连（500ms 起指数退避，上限 30s，10 次） |
-| projectionEnabled | false | Phase 3：注册 jlink 会话投影单元 |
+| autoReconnect | false | 断线重连（指数退避） |
+| projectionEnabled | false | 会话投影单元（Phase 3 推送） |
 
-## 工具目录（23，与 jlink_mcp 同名）
+## 工具目录（23）
 
-connection: list_jlink_devices / connect_device / disconnect_device / get_connection_status / match_chip_name
-device: get_target_info / get_target_voltage / scan_target_devices / list_device_patches
-memory: read_memory / write_memory / read_registers / write_register
-debug: reset_target / halt_cpu / run_cpu / step_instruction / get_cpu_state / set_breakpoint / clear_breakpoint
-flash: erase_flash / program_flash / verify_flash
-（rtt_* 与 gdb_* 已实现服务层，工具注册随 Phase 3 硬件验证后启用；RTT Remote 端点 `jlink/rttRead` 已注册）
+- **connection**：list_jlink_devices / connect_device / disconnect_device / get_connection_status / match_chip_name
+- **device**：get_target_info / get_target_voltage / scan_target_devices / list_device_patches
+- **memory**：read_memory / write_memory / read_registers / write_register
+- **debug**：reset_target / halt_cpu / run_cpu / step_instruction / get_cpu_state / set_breakpoint / clear_breakpoint
+- **flash**：erase_flash / program_flash / verify_flash（⚠️ 真机驱动暂返回 JLINK_UNSUPPORTED，见限制）
 
-## 可视化
+约束：内存/寄存器读写前必须已 halt（工具内检查，未 halt 返回 JLINK_NOT_HALTED）。
 
-- 会话头 J-Link 状态灯（`conversation.session.header.actions` 槽）+ 弹窗快捷操作（暂停/运行/复位）
-- 工具结果键控视图（`tool.call.toolview`）：read_memory hexdump、read_registers 表格、get_target_info 芯片卡、flash 进度条
-- Remote RPC（手写 strict codec 贡献，D4）：status / halt / run / reset / rttRead
+## 真机验证记录（2026-08，J-Link WiFi · JTAG · Cortex-M4）
+
+| 操作 | 结果 |
+|---|---|
+| 枚举 | ✅ J-Link WiFi, S/N 941000021 |
+| connect（FC7300F4MDDxXxxxT1C → DLL 无此芯片 → 自动回退 Cortex-M4） | ✅ |
+| halt / run（pylink 2.0.0 无 go()，直调 DLL JLINKARM_Go） | ✅ |
+| read_registers | ✅ R0=0x2002ffe0, MSP=0x2002ffcc, XPSR=0x41000003, PRIMASK=1 |
+| read/write memory @0x20000000 | ✅ 写 aa bb cc dd 读回一致 |
+| 断点 set/clear | ✅ |
+| 电压 | ✅ exec_command VTarget 解析 |
+
+## 已知限制
+
+1. **Flash 三件套未接入**：pylink 裸接口没有 FC7300 flash loader（需要 jlink_mcp 的 flash 管线 + `Devices/Flagchip/FC7300/*.elf` 加载器），当前返回 JLINK_UNSUPPORTED
+2. **RTT 需固件配合**：目标固件执行 `SEGGER_RTT_Init()` 后 rtt_read/rtt_write 才能取到数据
+3. **SVD / GDB server / 多厂商补丁**：规划中
+4. **client 端 UI 为内联样式**：ui-primitives token 细化待做
 
 ## 开发
 
 ```bash
-pnpm typecheck   # tsc --noEmit（严格模式）
-pnpm test        # vitest：补丁匹配向量 / 信封 / 状态机（MockDriver）
-pnpm watch       # tsdown --watch（host 产物热重建）
+pnpm install          # devDeps 含 @deepseek-ai/* 的 file: 引用（本机 rc.6）
+pnpm build            # 主构建(ESM) + client(CJS) + wrap-client.mjs 包装为 web shell 模块
+pnpm typecheck        # tsc --noEmit 严格模式
+pnpm test             # vitest：补丁匹配向量 / 信封 / 状态机 / remote 描述符一致性（25 个）
+node scripts/smoke.mjs          # 构建产物冒烟（23 工具注册）
+node scripts/hw-test.mjs        # 真机驱动全流程测试（需要 J-Link + 板子）
+node scripts/tool-catalog.mjs   # 打印模型可见的工具目录
 ```
 
-## 注意事项
+注意：pnpm 无 TTY 时构建可能触发 install 确认，用 `CI=true pnpm build`。
 
-- 本包完全自包含：整体搬移后只需 `pnpm install && pnpm build`。
-- 客户端 bundle 经 scripts/wrap-client.mjs 包装为 web shell 的 `__ModuleLoader__.load` 格式；client 改动需重建后刷新浏览器。
-- Python 驱动（Phase 3）需 pylink-square；flash 三件套待接入 jlink_mcp 的 flash loader 管线。
+## 目录结构
 
+```
+src/index.ts            # host 入口 apply（服务/补丁/工具/typert 装配，inject: ['tools','typert']）
+src/service.ts          # JLinkService：Remote 端点(remote*) + 工具面
+src/core.ts             # JLinkCore：连接状态机（无框架依赖，可单测）
+src/driver/             # DriverInterface + MockDriver + PythonDriver(ndjson RPC)
+src/patch/              # DevicePatch 接口 + PatchRegistry + FlagchipPatch（匹配算法平移）
+src/tools/              # 23 个工具（ToolDefinition 风格）
+src/remote-spec.ts      # 手写 Typert 贡献（host TYPERT + client TYPERT_REMOTE，strict codec + zod）
+src/projection.ts       # 会话投影单元（Phase 3）
+src/client/             # 浏览器面：状态灯组件 + toolview 视图族 + remote 挂载
+python/driver.py        # Python 驱动：ndjson JSON-RPC + pylink（协议见 python/README.md）
+scripts/                # smoke / hw-test / tool-catalog / wrap-client
+tests/                  # 25 个单测
+```
 
-## 实现偏差记录（对照 DESIGN.md 验收用）
+## 参考
 
-| DESIGN.md 条目 | 实现情况 | 说明 |
-|---|---|---|
-| §6.4 PatchRegistry extends Service | 已实现为纯类 + `ctx.provide('jlink.patches', ...)` | 为可单测性改为普通类注册为服务，功能等价 |
-| §6.7 @Remote 装饰器 | **已移除**，改为普通方法 + 手写 InvocationDescriptor | 环境无装饰器转译；网关按注册描述符分发（D4 手写贡献路径），装饰器仅对生成器有意义 |
-| U4 样式 token / locale | 内联样式 + 自有 locale 字典 | ui-primitives token 细化留待 Phase 3 浏览器验证时接入 |
-| §10 Phase 3 | 代码已就位（PythonDriver / RTT / projection / 视图），未硬件验证 | flash 三件套在 driver.py 中返回 JLINK_UNSUPPORTED，待接入 jlink_mcp flash 管线 |
-| client 事件流 | 未用 `ctx.remote.$on` | 树外白名单限制（DESIGN R2），状态灯用 2s 轮询 + Remote RPC |
+- [jlink_mcp](https://github.com/cyj0920/jlink_mcp)：工具语义、匹配算法、补丁 XML 数据来源
+- [DSH-better-sidebar](https://github.com/cyj0920/DSH-better-sidebar)：树外 bundle 插件先例
+- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)：@deepseek-ai/dsh@0.1.0-rc.6 事实基准

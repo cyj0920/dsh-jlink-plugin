@@ -133,6 +133,7 @@ export class PythonDriver implements DriverInterface {
       interfaceKind: opts.interfaceKind ?? 'JTAG',
       chip: opts.chip,
       serial: opts.serial,
+      core: opts.core ?? 'Cortex-M4',
     })
   }
 

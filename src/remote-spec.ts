@@ -42,19 +42,40 @@ const statusDesc = descriptor('@can/dsh-jlink#jlink/status', 'status', [], {
   schema: statusResultSchema,
 })
 
-const haltDesc = descriptor('@can/dsh-jlink#jlink/halt', 'halt', [], {
+const haltDesc = descriptor('@can/dsh-jlink#jlink/halt', 'remoteHalt', [], {
   mode: 'strict',
   typeSymbol: '@can/dsh-jlink/types#JlinkStatusView',
   schema: statusResultSchema,
 })
 
-const runDesc = descriptor('@can/dsh-jlink#jlink/run', 'run', [], {
+const runDesc = descriptor('@can/dsh-jlink#jlink/run', 'remoteRun', [], {
   mode: 'strict',
   typeSymbol: '@can/dsh-jlink/types#JlinkStatusView',
   schema: statusResultSchema,
 })
 
-const resetDesc = descriptor('@can/dsh-jlink#jlink/reset', 'reset', [], {
+const resetDesc = descriptor('@can/dsh-jlink#jlink/reset', 'remoteReset', [], {
+  mode: 'strict',
+  typeSymbol: '@can/dsh-jlink/types#JlinkStatusView',
+  schema: statusResultSchema,
+})
+
+const connectDesc = descriptor(
+  '@can/dsh-jlink#jlink/connect',
+  'remoteConnect',
+  [
+    { name: 'interfaceKind', wire: 'interfaceKind', source: 'json', codec: { mode: 'strict', typeSymbol: 'string', schema: z.string().optional() } },
+    { name: 'chip', wire: 'chip', source: 'json', codec: { mode: 'strict', typeSymbol: 'string', schema: z.string().optional() } },
+    { name: 'core', wire: 'core', source: 'json', codec: { mode: 'strict', typeSymbol: 'string', schema: z.string().optional() } },
+  ],
+  {
+    mode: 'strict',
+    typeSymbol: '@can/dsh-jlink/types#JlinkStatusView',
+    schema: statusResultSchema,
+  },
+)
+
+const disconnectDesc = descriptor('@can/dsh-jlink#jlink/disconnect', 'remoteDisconnect', [], {
   mode: 'strict',
   typeSymbol: '@can/dsh-jlink/types#JlinkStatusView',
   schema: statusResultSchema,
@@ -78,7 +99,7 @@ const rttReadDesc = descriptor(
   },
 )
 
-export const JlinkInvocations: readonly InvocationDescriptor[] = [statusDesc, haltDesc, runDesc, resetDesc, rttReadDesc]
+export const JlinkInvocations: readonly InvocationDescriptor[] = [statusDesc, connectDesc, disconnectDesc, haltDesc, runDesc, resetDesc, rttReadDesc]
 
 /** Host contribution registered via ctx.typert.register / Host 面贡献. */
 export const JlinkHostContribution: TypertContribution = {

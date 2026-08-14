@@ -6,6 +6,8 @@ export interface ConnectOptions {
   interfaceKind?: 'SWD' | 'JTAG'
   chip?: string
   serial?: string
+  /** Generic-core fallback (mirrors jlink_mcp generic_core_fallback) / 通用内核回退. */
+  core?: string
 }
 
 /** Live flash progress callback / 烧录进度回调. */

@@ -558,6 +558,7 @@ dsh --profile web --dump-config      # 应能看到 jlink 插件行与配置
 - U3 所有 interval / RPC / `$on` 订阅随 fiber 或组件卸载清理。
 - U4 React 18；样式只用 ui-primitives token；文案走 `jlink` locale 命名空间。
 - U5 组件不发工具调用；需要动作调 Remote 方法。
+- U6 **修正**（原假设错误）：`remote.jlink` 不得出现在客户端 inject 中。该命名空间服务由本 entry 在 apply 内 `await ctx.remote.$mount(contribution)` 动态创建（api-gateway 按贡献注册 `remote.<ns>` 服务），inject 它会导致 loader 在 apply 前解析依赖时服务尚不存在 → entry 永远 pending → web boot 失败。挂载者只 inject `['remote']`（同 dsh-api-remotes 官方模式）；挂载完成后 `ctx.remote.jlink` 经 Service 代理按 `reflect.props['remote.jlink']` 转发，无需声明（与 ui-goal 依赖宿主 dsh-api-remotes 提供的 `remote.goals` 不同：本插件自包含，必须先自挂载再消费）。
 
 ### 9.4 构建/打包（B）
 - B1 `exports` 含 `.`、`./client`、`./types`、`./remote`、`./package.json`。

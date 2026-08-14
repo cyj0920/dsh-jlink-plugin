@@ -7,6 +7,7 @@ export const Config = z.object({
   pythonCommand: z.string().default('python'),
   pythonDriverPath: z.string().optional(),
   defaultInterface: z.enum(['SWD', 'JTAG']).default('JTAG'),
+  defaultCore: z.string().default('Cortex-M4'),
   defaultTimeoutMs: z.number().int().positive().default(10000),
   maxMemoryReadSize: z.number().int().positive().default(65536),
   patchDir: z.string().optional(),

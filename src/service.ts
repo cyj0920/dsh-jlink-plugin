@@ -20,6 +20,7 @@ export class JLinkService extends TypertRemoteService {
   // ── Remote endpoints (SRC, direct invocation) / Remote 端点 ──
 
   status(): Promise<JlinkStatusView> {
+    console.info('[dsh-jlink] RPC status() invoked')
     return Promise.resolve(this.core.statusView())
   }
 
@@ -40,6 +41,41 @@ export class JLinkService extends TypertRemoteService {
 
   rttRead(since: number): Promise<RttReadView> {
     return this.core.rttRead(since).then((r) => (r.success && r.data ? r.data : { since, lines: [], active: false }))
+  }
+
+  /** Remote-facing connect (UI button) / UI 连接入口. */
+  async remoteConnect(opts: { interfaceKind?: string; chip?: string; core?: string }): Promise<JlinkStatusView> {
+    console.info('[dsh-jlink] RPC remoteConnect() invoked', opts)
+    const res = await this.core.connect({
+      interfaceKind: opts.interfaceKind === 'SWD' || opts.interfaceKind === 'JTAG' ? opts.interfaceKind : undefined,
+      chip: opts.chip,
+      core: opts.core,
+    })
+    return this.core.statusView()
+  }
+
+  /** Remote-facing disconnect (UI button) / UI 断开入口. */
+  async remoteDisconnect(): Promise<JlinkStatusView> {
+    await this.core.disconnect()
+    return this.core.statusView()
+  }
+
+  /** Remote-facing halt (UI button) / UI 暂停入口. */
+  async remoteHalt(): Promise<JlinkStatusView> {
+    await this.core.halt()
+    return this.core.statusView()
+  }
+
+  /** Remote-facing run (UI button) / UI 运行入口. */
+  async remoteRun(): Promise<JlinkStatusView> {
+    await this.core.run()
+    return this.core.statusView()
+  }
+
+  /** Remote-facing reset (UI button) / UI 复位入口. */
+  async remoteReset(): Promise<JlinkStatusView> {
+    await this.core.reset()
+    return this.core.statusView()
   }
 
   // ── Tool surface (thin delegation to the core) / 工具面 ──

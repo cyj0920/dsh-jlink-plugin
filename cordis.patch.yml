@@ -11,5 +11,7 @@
       name: '@can/dsh-jlink'
       inject: ['tools', 'typert']
       config:
-        driver: mock
+        driver: python
+        pythonCommand: 'C:\\1.Projects\\Can\\jlink_mcp\\.venv\\Scripts\\python.exe'
         defaultInterface: JTAG
+        defaultCore: Cortex-M4

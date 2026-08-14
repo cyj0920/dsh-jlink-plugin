@@ -84,13 +84,14 @@ export class JLinkCore {
     return this.driver.listDevices()
   }
 
-  async connect(opts: { serial?: string; interfaceKind?: 'SWD' | 'JTAG'; chip?: string }): Promise<Envelope<TargetInfoView>> {
+  async connect(opts: { serial?: string; interfaceKind?: 'SWD' | 'JTAG'; chip?: string; core?: string }): Promise<Envelope<TargetInfoView>> {
     if (this.state.status === 'connecting') return fail('already connecting', ErrorCodes.BUSY)
     this.setState({ status: 'connecting', error: null, chip: opts.chip ?? null, interfaceKind: opts.interfaceKind ?? this.config.defaultInterface, serial: opts.serial ?? null })
     const res = await this.driver.connect({
       interfaceKind: opts.interfaceKind ?? this.config.defaultInterface,
       chip: opts.chip ?? undefined,
       serial: opts.serial,
+      core: this.config.defaultCore,
     })
     if (!res.success) {
       this.setState({ status: 'error', error: res.error?.message ?? res.message })
@@ -98,6 +99,13 @@ export class JLinkCore {
     }
     this.reconnectAttempts = 0
     this.setState({ status: 'connected', chip: res.data?.chip ?? opts.chip ?? null, voltage: res.data?.voltage ?? null, error: null })
+    // Best-effort: reflect the actual CPU state right after connecting / 连接后查询 CPU 状态.
+    try {
+      const st = await this.driver.getCpuState()
+      if (st.success && st.data) this.cpuState = st.data
+    } catch {
+      /* keep previous state */
+    }
     return res
   }
 
