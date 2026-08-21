@@ -15,8 +15,8 @@ device patches and browser visualization. 设计规格见 [DESIGN.md](./DESIGN.m
 ## 特性
 
 - **23 个原生工具**（与 jlink_mcp 同名）：连接管理、设备信息、内存/寄存器、调试控制、Flash、芯片名智能匹配
-- **浏览器可视化**：会话头 J-Link 状态灯（实时轮询 Remote RPC，弹窗内直接连接/断开/暂停/运行/复位）
-- **设备补丁注册器**：Flagchip 内置 6 款设备（FC7300F4MDDxXxxxT1C 等），匹配算法与 jlink_mcp 一致（精确→前缀→包含→模糊 + T1C>T1B>T1A 优先级）
+- **浏览器可视化**：会话头 J-Link 状态灯（实时轮询 Remote RPC，弹窗内直接连接/断开/暂停/运行/复位；连接面板带**芯片名可搜索下拉**（补丁注册器 27 款，输入即过滤）与 SWD/JTAG 接口选择）
+- **设备补丁注册器**：Flagchip 内置 6 款设备（FC7300F4MDDxXxxxT1C 等）+ Builtin 内置 21 款 DLL 常见芯片（STM32F1xx/F2/F4/H7/L4/G4、nRF52、LPC、TM4C），匹配算法与 jlink_mcp 一致（精确→前缀→包含→模糊 + T1C>T1B>T1A 优先级）
 - **可插拔驱动层**：mock（无硬件开发）/ python（真机，ndjson RPC 子进程）/ gdb（规划）
 - **统一信封**：所有工具返回 `{success, data, message, error}`，错误码结构化（JLINK_NOT_HALTED 等）
 

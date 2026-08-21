@@ -23,6 +23,8 @@ const rttReadResultSchema = z
   })
   .readonly()
 
+const deviceNamesResultSchema = z.array(z.string()).readonly()
+
 function descriptor(id: string, method: string, params: InvocationDescriptor['parameters'], result: InvocationDescriptor['result']): InvocationDescriptor {
   return {
     id,
@@ -99,7 +101,22 @@ const rttReadDesc = descriptor(
   },
 )
 
-export const JlinkInvocations: readonly InvocationDescriptor[] = [statusDesc, connectDesc, disconnectDesc, haltDesc, runDesc, resetDesc, rttReadDesc]
+const deviceNamesDesc = descriptor('@can/dsh-jlink#jlink/deviceNames', 'deviceNames', [], {
+  mode: 'strict',
+  typeSymbol: '@can/dsh-jlink/types#stringArray',
+  schema: deviceNamesResultSchema,
+})
+
+export const JlinkInvocations: readonly InvocationDescriptor[] = [
+  statusDesc,
+  connectDesc,
+  disconnectDesc,
+  haltDesc,
+  runDesc,
+  resetDesc,
+  rttReadDesc,
+  deviceNamesDesc,
+]
 
 /** Host contribution registered via ctx.typert.register / Host 面贡献. */
 export const JlinkHostContribution: TypertContribution = {
@@ -122,6 +139,7 @@ export const JlinkHostContribution: TypertContribution = {
           { kind: 'method', name: 'run', signature: 'run(): Promise<JlinkStatusView>', summary: 'Run CPU and return status view.', jsDoc: '' },
           { kind: 'method', name: 'reset', signature: 'reset(): Promise<JlinkStatusView>', summary: 'Reset target and return status view.', jsDoc: '' },
           { kind: 'method', name: 'rttRead', signature: 'rttRead(since: number): Promise<RttReadView>', summary: 'Read RTT lines since a sequence number.', jsDoc: '' },
+          { kind: 'method', name: 'deviceNames', signature: 'deviceNames(): Promise<string[]>', summary: 'All known chip names from the patch registry.', jsDoc: '' },
         ],
         types: [],
       },

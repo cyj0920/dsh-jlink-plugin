@@ -33,6 +33,18 @@ const inputStyle: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box', fontSize: 12, padding: '4px 6px',
   border: '1px solid #ccc', borderRadius: 4,
 }
+const chipListStyle: React.CSSProperties = {
+  position: 'absolute', zIndex: 40, top: '100%', left: 0, right: 0, marginTop: 2,
+  background: '#fff', border: '1px solid #ccc', borderRadius: 4,
+  maxHeight: 160, overflowY: 'auto', boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+}
+const chipCaptionStyle: React.CSSProperties = {
+  padding: '3px 8px', fontSize: 10, opacity: 0.6, borderBottom: '1px solid #eee',
+  position: 'sticky', top: 0, background: '#fff',
+}
+const chipItemBase: React.CSSProperties = {
+  padding: '5px 8px', fontSize: 12, cursor: 'pointer', fontFamily: 'monospace',
+}
 
 export function JlinkHeaderControl(_props: Record<string, unknown>): JSX.Element {
   const [status, setStatus] = useState<JlinkStatusView | null>(null)
@@ -41,6 +53,10 @@ export function JlinkHeaderControl(_props: Record<string, unknown>): JSX.Element
   const [busy, setBusy] = useState(false)
   const [errorText, setErrorText] = useState<string | null>(null)
   const [remoteOk, setRemoteOk] = useState<boolean | null>(null)
+  const [interfaceKind, setInterfaceKind] = useState<'SWD' | 'JTAG'>('JTAG')
+  const [chipOptions, setChipOptions] = useState<string[] | null>(null)
+  const [listOpen, setListOpen] = useState(false)
+  const [hovered, setHovered] = useState<number | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -89,6 +105,20 @@ export function JlinkHeaderControl(_props: Record<string, unknown>): JSX.Element
     return () => { cancelled = true; clearInterval(timer) }
   }, [])
 
+  // Lazy-load the chip name list once per panel open / 面板打开时拉取芯片名单.
+  useEffect(() => {
+    if (!open || chipOptions !== null) return
+    const remote = getJlinkRemote()
+    if (!remote) return
+    void withTimeout(remote.deviceNames(), RPC_TIMEOUT_MS, 'deviceNames')
+      .then((r) => unwrap(r))
+      .then((names) => setChipOptions([...names].sort((a, b) => a.localeCompare(b))))
+      .catch((e) => {
+        console.warn('[dsh-jlink] deviceNames failed:', e)
+        setChipOptions([]) // keep free-text entry usable even without the list
+      })
+  }, [open, chipOptions])
+
   const runAction = (label: string, fn: () => Promise<JlinkStatusView | null>): void => {
     setBusy(true)
     setErrorText(null)
@@ -109,9 +139,10 @@ export function JlinkHeaderControl(_props: Record<string, unknown>): JSX.Element
   const doConnect = (): void => {
     const remote = getJlinkRemote()
     if (!remote) return
+    setListOpen(false)
     const chip = chipInput.trim()  // '' => generic-core fallback in the driver
     // The gateway requires ALL descriptor fields present in args (undefined is dropped).
-    runAction('connect', async () => unwrap(await withTimeout(remote.remoteConnect('JTAG', chip, 'Cortex-M4'), RPC_TIMEOUT_MS, 'connect')))
+    runAction('connect', async () => unwrap(await withTimeout(remote.remoteConnect(interfaceKind, chip, 'Cortex-M4'), RPC_TIMEOUT_MS, 'connect')))
   }
   const doDisconnect = (): void => {
     const remote = getJlinkRemote()
@@ -123,6 +154,11 @@ export function JlinkHeaderControl(_props: Record<string, unknown>): JSX.Element
   const color = STATUS_COLOR[st]
   const chip = status?.chip ?? '—'
   const title = STATUS_TEXT[st] + (status?.error ? ': ' + status.error : '')
+
+  // Chip dropdown filter: case-insensitive substring on the typed text / 下拉过滤.
+  const needle = chipInput.trim().toLowerCase()
+  const allChips = chipOptions ?? []
+  const filteredChips = (needle ? allChips.filter((n) => n.toLowerCase().includes(needle)) : allChips).slice(0, 50)
 
   return (
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -142,8 +178,52 @@ export function JlinkHeaderControl(_props: Record<string, unknown>): JSX.Element
           {errorText && <div style={{ color: '#ff3b30', fontSize: 11, marginBottom: 6, wordBreak: 'break-all' }}>{errorText}</div>}
           {status?.error && <div style={{ color: '#ff3b30', marginBottom: 4 }}>{status.error}</div>}
           {st === 'disconnected' || st === 'error' ? (
-            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-              <input name="jlink-chip" value={chipInput} onChange={(e) => setChipInput(e.target.value)} placeholder="芯片名（可选，留空=通用内核）" style={inputStyle} />
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ position: 'relative' }}>
+                <input
+                  name="jlink-chip"
+                  value={chipInput}
+                  onChange={(e) => { setChipInput(e.target.value); setListOpen(true); setHovered(null) }}
+                  onFocus={() => setListOpen(true)}
+                  onKeyDown={(e) => { if (e.key === 'Escape') setListOpen(false) }}
+                  placeholder="芯片名（可选，留空=通用内核）"
+                  style={inputStyle}
+                  autoComplete="off"
+                />
+                {listOpen && filteredChips.length > 0 && (
+                  <div style={chipListStyle}>
+                    <div style={chipCaptionStyle}>
+                      共 {filteredChips.length} 款{needle ? '（过滤自 ' + allChips.length + '）' : ''} · 点击选择
+                    </div>
+                    {filteredChips.map((n, idx) => (
+                      <div
+                        key={n}
+                        style={idx === hovered ? { ...chipItemBase, background: '#eef4ff' } : chipItemBase}
+                        onMouseEnter={() => setHovered(idx)}
+                        onMouseLeave={() => setHovered(null)}
+                        // mousedown fires before input blur, so the pick always lands / 先于 blur 触发
+                        onMouseDown={() => { setChipInput(n); setListOpen(false); setHovered(null) }}
+                      >
+                        {n}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                <span style={{ fontSize: 11, opacity: 0.7 }}>接口</span>
+                <select
+                  value={interfaceKind}
+                  onChange={(e) => setInterfaceKind(e.target.value === 'SWD' ? 'SWD' : 'JTAG')}
+                  style={{ ...inputStyle, width: 84 }}
+                >
+                  <option value="SWD">SWD</option>
+                  <option value="JTAG">JTAG</option>
+                </select>
+                <span style={{ fontSize: 11, opacity: 0.55 }}>
+                  {chipOptions === null ? '芯片名单加载中…' : '库内 ' + chipOptions.length + ' 款'}
+                </span>
+              </div>
             </div>
           ) : null}
           <div style={{ display: 'flex', gap: 6 }}>

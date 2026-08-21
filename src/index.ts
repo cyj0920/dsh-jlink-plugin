@@ -4,6 +4,7 @@ import { Config, type JlinkConfig } from './config'
 import { JLinkService } from './service'
 import { PatchRegistry } from './patch/registry'
 import { FlagchipPatch } from './patch/flagchip'
+import { BuiltinPatch } from './patch/builtin'
 import { registerJlinkTools } from './tools'
 import { JlinkHostContribution } from './remote-spec'
 import { registerJlinkProjection } from './projection'
@@ -22,16 +23,15 @@ export { JLinkService } from './service'
 export { JLinkCore } from './core'
 export { PatchRegistry } from './patch/registry'
 export { FlagchipPatch } from './patch/flagchip'
+export { BuiltinPatch } from './patch/builtin'
 export { MockDriver } from './driver/mock'
 export { PythonDriver } from './driver/python'
 export { JlinkHostContribution, JlinkRemoteContribution } from './remote-spec'
 
 /** Plugin body / 插件主体. */
 export function apply(ctx: Context, config: JlinkConfig): void {
-  // D2: the service lives on the host plane (process-global hardware handle).
-  const svc = new JLinkService(ctx, config)
-
-  // Patch registry (H10: patch load failure is non-fatal).
+  // Patch registry first: the service exposes its device names over Remote RPC.
+  // (H10: patch load failure is non-fatal.)
   const patches = new PatchRegistry()
   try {
     const flag = new FlagchipPatch(config.patchDir)
@@ -39,7 +39,16 @@ export function apply(ctx: Context, config: JlinkConfig): void {
   } catch (e) {
     logger.warn('Flagchip patch load failed: ' + (e as Error).message)
   }
+  try {
+    const builtin = new BuiltinPatch()
+    if (builtin.isAvailable()) patches.register(builtin)
+  } catch (e) {
+    logger.warn('Builtin patch load failed: ' + (e as Error).message)
+  }
   ctx.provide('jlink.patches', patches)
+
+  // D2: the service lives on the host plane (process-global hardware handle).
+  const svc = new JLinkService(ctx, config, patches)
 
   registerJlinkTools(ctx, svc, patches)
 

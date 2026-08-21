@@ -26,6 +26,8 @@ export interface JlinkRemote {
   remoteRun(): Promise<RemoteResult<JlinkStatusView>>
   remoteReset(): Promise<RemoteResult<JlinkStatusView>>
   rttRead(since: number): Promise<RemoteResult<RttReadView>>
+  /** All known chip names (patch registry, sorted) / 芯片名单. */
+  deviceNames(): Promise<RemoteResult<string[]>>
 }
 
 /** Client services accessed through one structural view / 客户端服务访问. */

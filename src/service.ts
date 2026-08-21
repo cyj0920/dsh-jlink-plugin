@@ -1,6 +1,7 @@
 /** JLinkService: cordis service exposing the JLinkCore (Remote RPC + tool surface) / JLink 服务. */
 import type { Context } from '@deepseek-ai/cordis'
 import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import type { PatchRegistry } from './patch/registry'
 import type { JlinkConfig } from './config'
 import { JLinkCore } from './core'
 import { createDriver } from './driver/factory'
@@ -11,10 +12,18 @@ import type { CpuStateKind, Envelope, FlashProgressView, JlinkStatusView, Regist
 /** J-Link debug service registered as ctx['jlink'] / 调试服务. */
 export class JLinkService extends TypertRemoteService {
   readonly core: JLinkCore
+  private readonly patches: PatchRegistry | null
 
-  constructor(ctx: Context, config: JlinkConfig) {
+  constructor(ctx: Context, config: JlinkConfig, patches?: PatchRegistry | null) {
     super(ctx, 'jlink')
+    this.patches = patches ?? null
     this.core = new JLinkCore(createDriver(config), config)
+  }
+
+  /** Remote endpoint: all known chip names for the client dropdown / 芯片名单. */
+  deviceNames(): Promise<string[]> {
+    const names = this.patches ? [...this.patches.getAllDeviceNames()].sort((a, b) => a.localeCompare(b)) : []
+    return Promise.resolve(names)
   }
 
   // ── Remote endpoints (SRC, direct invocation) / Remote 端点 ──
