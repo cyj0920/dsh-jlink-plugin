@@ -152,7 +152,11 @@ export function JlinkHeaderControl(_props: Record<string, unknown>): JSX.Element
 
   const st = status?.status ?? 'disconnected'
   const color = STATUS_COLOR[st]
-  const chip = status?.chip ?? '—'
+  // Chip vs identified core: a generic-core connect reports the auto-identified
+  // core instead of a fake chip name / 芯片与内核分开，通用连接显示自动识别的内核.
+  const chipLine = status?.chip
+    ? status.core && status.core !== status.chip ? status.chip + ' · ' + status.core : status.chip
+    : status?.core ? '未指定芯片（识别: ' + status.core + '）' : '—'
   const title = STATUS_TEXT[st] + (status?.error ? ': ' + status.error : '')
 
   // Chip dropdown filter: case-insensitive substring on the typed text / 下拉过滤.
@@ -169,7 +173,7 @@ export function JlinkHeaderControl(_props: Record<string, unknown>): JSX.Element
       {open && (
         <div style={panelStyle}>
           <div style={{ fontWeight: 600, marginBottom: 8 }}>J-Link · {STATUS_TEXT[st]}</div>
-          <div style={{ marginBottom: 4 }}>芯片: {chip}</div>
+          <div style={{ marginBottom: 4 }}>芯片: {chipLine}</div>
           <div style={{ marginBottom: 4 }}>电压: {status?.voltage != null ? status.voltage.toFixed(2) + ' V' : '—'}</div>
           <div style={{ marginBottom: 8 }}>CPU: {status?.cpuState === 'halted' ? '已暂停' : status?.cpuState === 'running' ? '运行中' : '—'}</div>
           <div style={{ marginBottom: 4, fontSize: 11, opacity: 0.7 }}>

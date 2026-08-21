@@ -17,6 +17,8 @@ export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'er
 export interface ConnectionState {
   status: ConnectionStatus
   chip: string | null
+  /** Core identified by the DLL after connect / 连接后 DLL 实际识别的内核. */
+  core: string | null
   interfaceKind: InterfaceKind | null
   serial: string | null
   voltage: number | null
@@ -56,6 +58,8 @@ export interface JlinkStatusView {
   connected: boolean
   status: ConnectionStatus
   chip: string | null
+  /** Identified core (may exist even when no chip name was given) / 识别的内核. */
+  core: string | null
   voltage: number | null
   cpuState: CpuStateKind | null
   error: string | null

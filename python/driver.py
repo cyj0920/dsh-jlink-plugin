@@ -130,7 +130,8 @@ class JLinkBackend:
             jl.connect(chip_name=core)
         except Exception as e:
             raise DriverError("JLINK_DRIVER_ERROR", "connect failed (%s)" % e)
-        return self._target_info(jl, chip or core)
+        # Generic-core connect: report the core, never label it as a chip.
+        return self._target_info(jl, None)
 
     def disconnect(self, _params):
         if self._jl is not None:
@@ -159,7 +160,7 @@ class JLinkBackend:
                 voltage = float(m.group(1))
         except Exception:
             pass
-        return {"chip": chip_label or None, "core": core, "flashSize": None, "ramSize": None,
+        return {"chip": chip_label, "core": core or None, "flashSize": None, "ramSize": None,
                 "workRamAddr": None, "workRamSize": None, "voltage": voltage}
 
     def halt(self, _params):

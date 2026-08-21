@@ -8,6 +8,7 @@ const statusResultSchema = z
     connected: z.boolean(),
     status: z.enum(['disconnected', 'connecting', 'connected', 'error']),
     chip: z.string().nullable(),
+    core: z.string().nullable(),
     voltage: z.number().nullable(),
     cpuState: z.enum(['halted', 'running', 'unknown']).nullable(),
     error: z.string().nullable(),
