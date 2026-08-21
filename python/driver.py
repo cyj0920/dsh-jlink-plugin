@@ -51,11 +51,14 @@ class JLinkBackend:
         self._JLinkInterfaces = JLinkInterfaces
         self._registers = None  # name(upper) -> index
         self._breakpoints = {}  # address -> handle
+        self._serial = None        # requested probe S/N (None = first available)
+        self._open_serial = None   # S/N of the currently open probe
 
     def ensure(self):
         if self._jl is None:
             self._jl = self._JLink()
-            self._jl.open()
+            self._jl.open(serial_no=self._serial)
+            self._open_serial = self._serial
         return self._jl
 
     def list_devices(self, _params):
@@ -71,6 +74,17 @@ class JLinkBackend:
         ]
 
     def connect(self, params):
+        serial = params.get("serial")
+        want = None
+        if serial:
+            try:
+                want = int(str(serial).strip())
+            except ValueError:
+                log("ignoring non-numeric serial %r" % serial)
+        if want is not None and self._jl is not None and self._open_serial != want:
+            # A different probe is already open; close it so ensure() re-opens the requested one.
+            self.disconnect(None)
+        self._serial = want
         jl = self.ensure()
         iface = (params.get("interfaceKind") or "JTAG").upper()
         if iface == "SWD":
