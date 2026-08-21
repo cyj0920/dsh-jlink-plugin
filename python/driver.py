@@ -8,17 +8,38 @@ ndjson JSON-RPC over stdio:
 
 Backed by pylink-square 2.0.0 (same library stack as jlink_mcp). API details were
 verified empirically against the real J-Link (see scripts/pylink-probe*.py).
-Flash operations are NOT implemented here yet: they require the vendor flash
-loader pipeline from jlink_mcp (Phase 3 wiring).
+Flash: program_flash uses jl.flash() (DLL pipeline: erase affected sectors +
+program + progress callbacks); verify_flash is a chunked readback compare;
+erase_flash is a FULL CHIP erase (pylink binds JLINK_EraseChip only — there is
+no sector-range erase binding). Devices must be known to the J-Link DLL (e.g.
+STM32 built-ins); vendor devices like FC7300 need the jlink_mcp loader pipeline.
 """
 
 import json
 import sys
+import threading
 import traceback
+
+# The DLL may invoke flash progress callbacks from another thread; guard stdout.
+_STDOUT_LOCK = threading.Lock()
+
+# pylink flash progress action -> our FlashPhase (src/types.ts).
+_FLASH_PHASES = {
+    "compare": "verifying",
+    "erase": "erasing",
+    "flash": "programming",
+    "verify": "verifying",
+}
 
 
 def log(msg: str) -> None:
     sys.stderr.write("[dsh-jlink:driver] " + msg + "\n")
+
+
+def _emit_event(event: str, data: dict) -> None:
+    with _STDOUT_LOCK:
+        sys.stdout.write(json.dumps({"event": event, "data": data}) + "\n")
+        sys.stdout.flush()
 
 
 def _hex_bytes(data: str) -> bytes:
@@ -273,14 +294,93 @@ class JLinkBackend:
         jl.rtt_write(0, str(params.get("text") or "").encode("utf-8"))
         return None
 
+    @staticmethod
+    def _progress_cb(address: int, length: int):
+        """Build a jl.flash() on_progress(action, progress_string, percentage) handler."""
+        def _text(v):
+            # The DLL hands callbacks bytes (b'Compare'); normalize to str.
+            if isinstance(v, (bytes, bytearray)):
+                return v.decode("utf-8", errors="replace")
+            return "" if v is None else str(v)
+
+        def on_progress(action, progress_str, percentage):
+            act = _text(action).strip().lower()
+            phase = _FLASH_PHASES.get(act, "programming")
+            try:
+                pct = max(0, min(100, int(percentage)))
+            except (TypeError, ValueError):
+                pct = 0
+            _emit_event("flash_progress", {
+                "phase": phase,
+                "percent": pct,
+                "address": address,
+                "length": length,
+                "message": _text(progress_str) or act,
+            })
+        return on_progress
+
+    @staticmethod
+    def _readback_mismatch(jl, address: int, data: bytes):
+        """First mismatching byte offset, or None when the ranges are identical."""
+        chunk_size = 4096
+        for off in range(0, len(data), chunk_size):
+            n = min(chunk_size, len(data) - off)
+            got = bytes(jl.memory_read8(address + off, n))
+            want = data[off:off + n]
+            if got != want:
+                for i, (a, b) in enumerate(zip(got, want)):
+                    if a != b:
+                        return off + i
+                return off
+        return None
+
     def erase_flash(self, params):
-        raise DriverError("JLINK_UNSUPPORTED", "flash erase requires jlink_mcp flash pipeline (Phase 3 wiring)")
+        jl = self.ensure()
+        start = int(params.get("start", params.get("start_address", 0)) or 0)
+        end = int(params.get("end", params.get("end_address", 0)) or 0)
+        span = max(0, end - start)
+        # pylink binds JLINK_EraseChip only; a range request degrades to a full
+        # chip erase and is reported as such (fullChip: true).
+        _emit_event("flash_progress", {"phase": "erasing", "percent": 0, "address": start, "length": span, "message": "chip erase"})
+        try:
+            erased = int(jl.erase())
+        except Exception as e:
+            raise DriverError("JLINK_FLASH_ERROR", "flash erase failed: %s" % e)
+        _emit_event("flash_progress", {"phase": "idle", "percent": 100, "address": start, "length": span, "message": "erased %d bytes" % erased})
+        return {"bytesErased": erased, "fullChip": True}
 
     def program_flash(self, params):
-        raise DriverError("JLINK_UNSUPPORTED", "flash program requires jlink_mcp flash pipeline (Phase 3 wiring)")
+        jl = self.ensure()
+        address = int(params["address"])
+        data = _hex_bytes(params["data"])
+        verify = bool(params.get("verify", True))
+        if not data:
+            raise DriverError("JLINK_INVALID_PARAMETER", "empty data")
+        try:
+            flashed = int(jl.flash(data, address, on_progress=self._progress_cb(address, len(data))))
+        except DriverError:
+            raise
+        except Exception as e:
+            raise DriverError("JLINK_FLASH_ERROR", "flash program failed: %s" % e)
+        result = {"bytesFlashed": flashed, "length": len(data), "verified": False}
+        if verify:
+            _emit_event("flash_progress", {"phase": "verifying", "percent": 100, "address": address, "length": len(data), "message": "readback verify"})
+            off = self._readback_mismatch(jl, address, data)
+            if off is not None:
+                raise DriverError("JLINK_VERIFY_FAILED", "verify mismatch at 0x%x (offset %d)" % (address + off, off))
+            result["verified"] = True
+        return result
 
     def verify_flash(self, params):
-        raise DriverError("JLINK_UNSUPPORTED", "flash verify requires jlink_mcp flash pipeline (Phase 3 wiring)")
+        jl = self.ensure()
+        address = int(params["address"])
+        data = _hex_bytes(params["data"])
+        if not data:
+            raise DriverError("JLINK_INVALID_PARAMETER", "empty data")
+        off = self._readback_mismatch(jl, address, data)
+        if off is not None:
+            raise DriverError("JLINK_VERIFY_FAILED", "verify mismatch at 0x%x (offset %d)" % (address + off, off))
+        return {"bytesVerified": len(data)}
 
 
 BACKEND = JLinkBackend()
@@ -320,8 +420,9 @@ def _respond(req_id, result=None, error=None) -> None:
         payload["error"] = error
     else:
         payload["result"] = result
-    sys.stdout.write(json.dumps(payload) + "\n")
-    sys.stdout.flush()
+    with _STDOUT_LOCK:
+        sys.stdout.write(json.dumps(payload) + "\n")
+        sys.stdout.flush()
 
 
 if __name__ == "__main__":

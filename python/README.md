@@ -1,4 +1,4 @@
-# python/driver.py — ndjson RPC 驱动（Phase 3，硬件未验证）
+# python/driver.py — ndjson RPC 驱动（Phase 3，真机已验证）
 
 `PythonDriver`（src/driver/python.ts）通过 stdio 与本脚本通信，协议为逐行 JSON：
 
@@ -26,6 +26,6 @@ program_flash / verify_flash
 
 ## 状态
 
-- 已验证：无（需要真实 J-Link 硬件 + pylink-square 环境）。
-- 未实现：flash 三件套（需要 jlink_mcp 的 flash loader 管线，Phase 3 接入）。
+- 已验证（J-Link WiFi S/N 941000024 · SWD · STM32F103ZE / Cortex-M3）：connect/halt/run/寄存器/SRAM 读写回环/断点/RTT 循环、verify_flash 读回比对（精确匹配通过、篡改数据返回 JLINK_VERIFY_FAILED）。
+- flash 三件套：`program_flash` 走 pylink `jl.flash()`（DLL 管线：擦受影响扇区+编程+进度回调）；`verify_flash` 为分块读回比对；`erase_flash` 是**全片擦除**（pylink 只绑定 JLINK_EraseChip，无扇区区间擦除），结果以 `fullChip: true` 上报。仅对 DLL 已知设备可用（STM32 内置即属此类）；FC7300 等厂商设备仍需 jlink_mcp 的 loader 管线。
 - 依赖：pylink-square（与 jlink_mcp 同一库栈）；启动不要求硬件库可导入（惰性导入 + 结构化错误）。

@@ -8,7 +8,8 @@ device patches and browser visualization. 设计规格见 [DESIGN.md](./DESIGN.m
 
 - ✅ **Phase 1+2**：骨架、23 个工具、补丁注册器、toolview 视图族（已通过 typecheck / 25 单测 / 构建冒烟）
 - ✅ **Phase 3（已真机验证）**：PythonDriver（ndjson RPC + pylink 2.0.0）、状态灯 + 连接/暂停/运行/复位、RTT 服务层
-- ⏳ **Phase 3 剩余**：Flash 三件套（需接 jlink_mcp flash loader 管线）、RTT 固件联调、会话投影推送
+- ✅ **Flash 三件套（STM32 真机验证）**：program_flash 走 pylink 原生 DLL 管线（进度事件）、verify_flash 读回比对、erase_flash 全片擦除；FC7300 需 jlink_mcp loader 管线（后续）
+- ⏳ **Phase 3 剩余**：RTT 固件联调、会话投影推送
 - 真机记录：**J-Link WiFi (S/N 941000021) · JTAG · Cortex-M4 r0p1**，halt / 寄存器 / SRAM 读写回环 / 断点 / run 全部实测通过
 
 ## 特性
@@ -72,7 +73,7 @@ dsh web
 - **device**：get_target_info / get_target_voltage / scan_target_devices / list_device_patches
 - **memory**：read_memory / write_memory / read_registers / write_register
 - **debug**：reset_target / halt_cpu / run_cpu / step_instruction / get_cpu_state / set_breakpoint / clear_breakpoint
-- **flash**：erase_flash / program_flash / verify_flash（⚠️ 真机驱动暂返回 JLINK_UNSUPPORTED，见限制）
+- **flash**：erase_flash / program_flash / verify_flash（✅ STM32 真机验证；erase 为全片擦除，见限制）
 
 约束：内存/寄存器读写前必须已 halt（工具内检查，未 halt 返回 JLINK_NOT_HALTED）。
 
@@ -90,7 +91,7 @@ dsh web
 
 ## 已知限制
 
-1. **Flash 三件套未接入**：pylink 裸接口没有 FC7300 flash loader（需要 jlink_mcp 的 flash 管线 + `Devices/Flagchip/FC7300/*.elf` 加载器），当前返回 JLINK_UNSUPPORTED
+1. **Flash 按设备而异**：DLL 已知设备（如 STM32 内置型号）三件套直接可用——program_flash 走 pylink 原生管线（含进度事件）、verify_flash 读回比对、erase_flash 为**全片擦除**（pylink 仅绑定 JLINK_EraseChip）。FC7300 不在 DLL 设备表，仍需 jlink_mcp 的 flash 管线 + `Devices/Flagchip/FC7300/*.elf` 加载器（后续接入）
 2. **RTT 需固件配合**：目标固件执行 `SEGGER_RTT_Init()` 后 rtt_read/rtt_write 才能取到数据
 3. **SVD / GDB server / 多厂商补丁**：规划中
 4. **client 端 UI 为内联样式**：ui-primitives token 细化待做
